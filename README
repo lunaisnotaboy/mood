@@ -13,3 +13,11 @@ Simple CLI mood tracker
 - Able to record mood more often than daily
 - Graph/heatmap of mood over time
 - Emoji's to represent mood??
+
+# BUILDING
+
+From this directory, `dub build` (you'll need dub and dmd installed).
+
+# INSTALLATION
+
+Build, then copy `mood` to somewhere in your $PATH
