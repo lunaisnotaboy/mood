@@ -1,0 +1,15 @@
+                                  ### MOOD ###
+
+Simple CLI mood tracker
+
+## Important Features
+- Track mood over time, maybe out of 10?
+- Persistant storage of the data
+- Able to enter mood each day
+- Able to see changes over time
+
+## Nice-to-have Features
+- Edit previously recorded moods
+- Able to record mood more often than daily
+- Graph/heatmap of mood over time
+- Emoji's to represent mood??

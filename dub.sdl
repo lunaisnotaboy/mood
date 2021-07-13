@@ -1,0 +1,4 @@
+name "mood"
+targetType "executable"
+sourcePaths "."
+importPaths "."
