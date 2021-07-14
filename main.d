@@ -14,13 +14,16 @@ import std.range     ;
 
 int usage( string arg0 ) {
 	switch ( arg0 ) {
-		case "log"   : writeln( "Usage: log [1-10]"               ) ; break ;
-		case "day"   : writeln( "Usage: day"                      ) ; break ;
-		case "week"  : writeln( "Usage: week"                     ) ; break ;
-		case "month" : writeln( "Usage: month"                    ) ; break ;
-		case "year"  : writeln( "Usage: year"                     ) ; break ;
-		case "all"   : writeln( "Usage: all"                      ) ; break ;
-		case "edit"  : writeln( "Usage: edit [yyyy-mm-dd [1-10]]" ) ; break ;
+		case "l" , "log"   : writeln( "Usage: log [1-10]"     ) ; break ;
+		case "d" , "day"   : writeln( "Usage: day"            ) ; break ;
+		case "w" , "week"  : writeln( "Usage: week"           ) ; break ;
+		case "m" , "month" : writeln( "Usage: month"          ) ; break ;
+		case "y" , "year"  : writeln( "Usage: year"           ) ; break ;
+		case "a" , "all"   : writeln( "Usage: all"            ) ; break ;
+		case "h" , "help"  : writeln( "Usage: help [command]" ) ; break ;
+		case "e" , "edit"  :
+			writeln( "Usage: edit [yyyy-mm-dd [1-10]]" ) ;
+			break ;
 		case "nohistory" :
 			writeln( "No data yet! Use the 'log' command to log your mood" ) ;
 			break ;
@@ -30,6 +33,41 @@ int usage( string arg0 ) {
 			writeln( "Run '" , arg0 ,
 			         " help' for more detailed documentation" ) ;
 			break ;
+	}
+	return 0 ;
+}
+
+int help( string[] args ) {
+	const string logHelp = "log|l [1-10]
+\tLog your mood for today from 1-10. You can log multiple times per day.
+\tIf you don't provide the value straight away you'll be prompted for it." ;
+	const string showHelp = "day|week|month|year|all|d|w|m|y|a
+\tDisplay your mood history over the given time period." ;
+	const string editHelp = "edit|e [yyyy-mm-dd [1-10]]
+\tUpdate your mood score for that day. You'll be prompted for missing
+\tinformation." ;
+	const string helpHelp = "help|h [command]
+\tShow help for the given command, or all if none is provided." ;
+
+	if ( args.length > 1 ) return usage( "help" ) ;
+	if ( args.length == 0 ) {
+		writeln(
+			"Usage: mood {log|day|week|month|year|all|edit|help|[ldwmyaeh]}\n"
+		) ;
+		logHelp .writeln ;
+		showHelp.writeln ;
+		editHelp.writeln ;
+		helpHelp.writeln ;
+	} else if ( args.length == 1 ) {
+		switch ( args[0] ) {
+			case "l" , "log" : logHelp.writeln ; break ;
+			case "d" , "w" , "m" , "y" , "a" ,
+				 "day" , "week" , "month" , "year" , "all" :
+				showHelp.writeln ; break ;
+			case "e" , "edit" : editHelp.writeln ; break ;
+			case "h" , "help" : helpHelp.writeln ; break ;
+			default : return usage( "help" ) ;
+		}
 	}
 	return 0 ;
 }
@@ -102,13 +140,20 @@ int[] getDays( int daysago ) {
 	int[] values ;
 
 	while ( today >= firstDay ) {
-		if ( entry < 0 || entry >= history.length ) values ~= 0 ;
+		if ( entry < 0 || entry >= history.length ) values ~= [ 0 , 0 ] ;
 		else if ( history[entry].date == today.toISOExtString ) {
-			values ~= cast(int)(
-				history[entry].values.split( "," ).map!( to!int ).array.mean
-			) ;
+			auto todayValues = history[entry].values.split( "," ).map!( to!int )
+				.array ;
+			if ( todayValues.length == 1 )
+				values ~= [ todayValues[0] , todayValues[0] ] ;
+			else values ~= [
+				// these are in reverse because the whole thing will be reversed
+				// later
+				cast(int)( todayValues[ $ / 2 .. $ ].mean ) ,
+				cast(int)( todayValues[ 0 .. $ / 2 ].mean )
+			] ;
 			entry -- ;
-		} else values ~= 0 ;
+		} else values ~= [ 0 , 0 ] ;
 
 		today -= days( 1 ) ;
 	}
@@ -164,23 +209,23 @@ MonthData[] getMonths( Date from ) {
 
 void graph( int[] values )
 in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
-     "All values must be 1-10" ) {
+     "All values must be 0-10" ) {
 	const string[] prefixes = [ ":D" , ":)" , ":|" , ":(" , ":C" ] ;
 	const string[] colours = [
 		"\x1b[92m" , "\x1b[32;100m" , "\x1b[0m" , "\x1b[31;100m" , "\x1b[91m"
 	] ;
 	const string reset = "\x1b[0m" ;
 
-	alias Bar = Tuple!( int , int , int ) ; // left max right
+	alias Bar = Tuple!( int , int ) ; // min max
 	Bar[] bars ;
 	foreach ( ulong i , int v ; values ) {
-		Bar bar = Bar( v , v , v ) ;
+		Bar bar = Bar( v , v ) ;
 		if ( i > 0 )
 			if ( values[ i - 1 ] < bar[0] - 1 && values[ i - 1 ] > 0 )
 				bar[0] = values[ i - 1 ] + 1 ;
 		if ( i < values.length - 1 )
-			if ( values[ i + 1 ] < bar[2] - 1 && values[ i + 1 ] > 0 )
-				bar[2] = values[ i + 1 ] + 1 ;
+			if ( values[ i + 1 ] < bar[0] && values[ i + 1 ] > 0 )
+				bar[0] = values[ i + 1 ] + 1 ;
 		bars ~= bar ;
 	}
 
@@ -191,11 +236,6 @@ in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
 			// left half
 			if      ( b[0] > m + 1 || b[1] < m ) write( " " ) ;
 			else if ( b[0] == m + 1            ) write( "▀" ) ;
-			else if ( b[1] == m                ) write( "▄" ) ;
-			else                                 write( "█" ) ;
-			// right half
-			if      ( b[2] > m + 1 || b[1] < m ) write( " " ) ;
-			else if ( b[2] == m + 1            ) write( "▀" ) ;
 			else if ( b[1] == m                ) write( "▄" ) ;
 			else                                 write( "█" ) ;
 		}
@@ -285,7 +325,7 @@ int day( string[] args ) {
 
 	writeln( "Here's how your day's looking so far:" ) ;
 	writeln( "   " , ".".repeat( values.length ).join( " " ) ) ;
-	graph( values ) ;
+	values.map!( d => [ d , d ] ).array.join( cast(int[])[] ).graph ;
 
 	return 0 ;
 }
@@ -298,10 +338,10 @@ int week( string[] args ) {
 	writeln( "Here's how your week's looking:" ) ;
 	auto dow = todayDate.dayOfWeek ;
 	writeln( "   " ,
-		"S M T W T F S S M T W T F S S M "[ dow * 2 + 2 .. dow * 2 + 16 ]
+		"SMTWTFSSMTWTFSSM"[ dow + 1 .. dow + 8 ].map!( d => [d] ).join( "   " )
 	) ;
 
-	getDays( 6 ).graph ;
+	getDays( 6 ).map!( d => [ d , d ] ).array.join( cast(int[])[] ).graph ;
 
 	return 0 ;
 }
@@ -364,4 +404,3 @@ int all( string[] args ) {
 }
 
 int edit( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
-int help( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
