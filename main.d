@@ -108,6 +108,24 @@ int log( string[] args ) {
 		return usage( "log" ) ;
 	}
 
+	const string[] comments = [
+		"I'd give you a hug if I wasn't an emotionless computer program <3" ,
+		"Oh no, hope you feel better soon <3"                               ,
+		"Aw I'm sorry :("                                                   ,
+		"Aw that's a shame :("                                              ,
+		"Just meh? That's ok ^^"                                            ,
+		"Not great but not terrible either!"                                ,
+		"Valid to feel that way!"                                           ,
+		"Doin' pretty good!"                                                ,
+		"Glad you're doing ok!"                                             ,
+		"Amazing! Have a wonderful day!"
+	] ;
+
+	// make a comment
+	import std.random ;
+	choice( comments[ val == 1 ? 0 : val - 2 .. val == 10 ? 10 : val + 1 ] )
+		.writeln ;
+
 	string s = val.text ;
 
 	// if we're here then we're good, so log
