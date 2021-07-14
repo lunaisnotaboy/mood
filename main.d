@@ -9,6 +9,7 @@ import std.array     ;
 import std.conv      ;
 import std.typecons  ;
 import std.algorithm ;
+import std.datetime  ;
 
 int usage( string arg0 ) {
 	switch ( arg0 ) {
@@ -89,12 +90,36 @@ void save( Entry[] history ) {
 }
 
 string getToday() {
-	import std.datetime ;
-	return Clock.currTime().toLocalTime.toISOExtString[0..10] ;
+	return Clock.currTime.toLocalTime.toISOExtString[0..10] ;
+}
+
+Date todayDate() { return Date.fromISOExtString( getToday ) ; }
+
+int[] getDays( int daysago ) {
+	auto history = getHistory ;
+	if ( history.length == 0 ) return [] ;
+
+	auto today    = todayDate               ;
+	auto firstDay = today - days( daysago ) ;
+	auto entry    = history.length - 1      ;
+	int[] values ;
+
+	while ( today >= firstDay ) {
+		if ( entry < 0 || entry >= history.length ) values ~= 0 ;
+		else if ( history[entry].date == today.toISOExtString ) {
+			values ~= cast(int)(
+				history[entry].values.split( "," ).map!( to!int ).array.mean
+			) ;
+			entry -- ;
+		} else values ~= 0 ;
+
+		today -= days( 1 ) ;
+	}
+	return values.reverse ;
 }
 
 void graph( int[] values )
-in ( std.algorithm.all!( v => v >= 1 && v <= 10 )( values ) ,
+in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
      "All values must be 1-10" ) {
 	const string[] prefixes = [ ":D" , ":)" , ":|" , ":(" , ":C" ] ;
 	const string[] colours = [
@@ -106,10 +131,12 @@ in ( std.algorithm.all!( v => v >= 1 && v <= 10 )( values ) ,
 	Bar[] bars ;
 	foreach ( ulong i , int v ; values ) {
 		Bar bar = Bar( v , v ) ;
-		if ( i > 0 ) if ( values[ i - 1 ] < bar[0] - 1 )
-			bar[0] = values[ i - 1 ] + 1 ;
-		if ( i < 9 ) if ( values[ i + 1 ] < bar[0] - 1 )
-			bar[0] = values[ i + 1 ] + 1 ;
+		if ( i > 0 )
+			if ( values[ i - 1 ] < bar[0] - 1 && values[ i - 1 ] > 0 )
+				bar[0] = values[ i - 1 ] + 1 ;
+		if ( i < values.length - 1 )
+			if ( values[ i + 1 ] < bar[0] - 1 && values[ i + 1 ] > 0 )
+				bar[0] = values[ i + 1 ] + 1 ;
 		bars ~= bar ;
 	}
 
@@ -194,7 +221,20 @@ int day( string[] args ) {
 	return 0 ;
 }
 
-int week( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
+int week( string[] args ) {
+	if ( args.length ) return usage( "week" ) ;
+	auto history = getHistory ;
+	if ( history.length == 0 ) return usage( "nohistory" ) ;
+
+	writeln( "Here's how your week's looking:" ) ;
+	auto dow = todayDate.dayOfWeek ;
+	writeln( "   " , "SMTWTFSSMTWTFSSM"[ dow + 1 .. dow + 8 ] ) ;
+
+	getDays( 6 ).graph ;
+
+	return 0 ;
+}
+
 int month( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int year( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int all( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
