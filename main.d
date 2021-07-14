@@ -13,12 +13,15 @@ import std.algorithm ;
 int usage( string arg0 ) {
 	switch ( arg0 ) {
 		case "log"   : writeln( "Usage: " , helpLog ) ; break ;
-		case "day"   : writeln( "Usage: " , helpLog ) ; break ;
+		case "day"   : writeln( "Usage: " , helpDay ) ; break ;
 		case "week"  : writeln( "Usage: " , helpLog ) ; break ;
 		case "month" : writeln( "Usage: " , helpLog ) ; break ;
 		case "year"  : writeln( "Usage: " , helpLog ) ; break ;
 		case "all"   : writeln( "Usage: " , helpLog ) ; break ;
 		case "edit"  : writeln( "Usage: " , helpLog ) ; break ;
+		case "nohistory" :
+			writeln( "No data yet! Use the 'log' command to log your mood" ) ;
+			break ;
 		default :
 			writeln( "Usage: " , arg0 ,
 			         " {log|day|week|month|year|all|edit|help|[ldwmyaeh]}" ) ;
@@ -30,7 +33,8 @@ int usage( string arg0 ) {
 }
 
 // help strings
-static string helpLog = "log [1-10]" ;
+const string helpLog = "log [1-10]" ;
+const string helpDay = "day"        ;
 
 string historyFile = "" ;
 
@@ -89,6 +93,39 @@ string getToday() {
 	return Clock.currTime().toLocalTime.toISOExtString[0..10] ;
 }
 
+void graph( int[] values )
+in ( std.algorithm.all!( v => v >= 1 && v <= 10 )( values ) ,
+     "All values must be 1-10" ) {
+	const string[] prefixes = [ ":D" , ":)" , ":|" , ":(" , ":C" ] ;
+	const string[] colours = [
+		"\x1b[32m" , "\x1b[34m" , "\x1b[35m" , "\x1b[33m" , "\x1b[31m"
+	] ;
+	const string reset = "\x1b[0m" ;
+
+	alias Bar = Tuple!( int , int ) ; // min max
+	Bar[] bars ;
+	foreach ( ulong i , int v ; values ) {
+		Bar bar = Bar( v , v ) ;
+		if ( i > 0 ) if ( values[ i - 1 ] < bar[0] - 1 )
+			bar[0] = values[ i - 1 ] + 1 ;
+		if ( i < 9 ) if ( values[ i + 1 ] < bar[0] - 1 )
+			bar[0] = values[ i + 1 ] + 1 ;
+		bars ~= bar ;
+	}
+
+	// draw graph
+	static foreach ( ulong l , int m ; [ 9 , 7 , 5 , 3 , 1 ] ) {
+		write( colours[l] , prefixes[l] , " " ) ;
+		foreach ( b ; bars ) {
+			if      ( b[0] > m + 1 || b[1] < m ) write( " " ) ;
+			else if ( b[0] == m + 1            ) write( "▀" ) ;
+			else if ( b[1] == m                ) write( "▄" ) ;
+			else                                 write( "█" ) ;
+		}
+		writeln() ;
+	}
+}
+
 // actions
 
 int log( string[] args ) {
@@ -142,7 +179,21 @@ int log( string[] args ) {
 	return 0 ;
 }
 
-int day( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
+int day( string[] args ) {
+	if ( args.length ) return usage( "day" ) ;
+	auto history = getHistory ;
+	if ( history.length == 0 ) return usage( "nohistory" ) ;
+	if ( history[ $ - 1 ].date != getToday ) return usage( "nohistory" ) ;
+
+	// get values
+	int[] values = history[ $ - 1 ].values.split( "," ).map!( to!int ).array ;
+
+	writeln( "Here's how your day's looking so far:" ) ;
+	graph( values ) ;
+
+	return 0 ;
+}
+
 int week( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int month( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int year( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
