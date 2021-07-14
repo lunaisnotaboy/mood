@@ -14,13 +14,13 @@ import std.range     ;
 
 int usage( string arg0 ) {
 	switch ( arg0 ) {
-		case "log"   : writeln( "Usage: " , helpLog ) ; break ;
-		case "day"   : writeln( "Usage: " , helpDay ) ; break ;
-		case "week"  : writeln( "Usage: " , helpLog ) ; break ;
-		case "month" : writeln( "Usage: " , helpLog ) ; break ;
-		case "year"  : writeln( "Usage: " , helpLog ) ; break ;
-		case "all"   : writeln( "Usage: " , helpLog ) ; break ;
-		case "edit"  : writeln( "Usage: " , helpLog ) ; break ;
+		case "log"   : writeln( "Usage: log [1-10]"               ) ; break ;
+		case "day"   : writeln( "Usage: day"                      ) ; break ;
+		case "week"  : writeln( "Usage: week"                     ) ; break ;
+		case "month" : writeln( "Usage: month"                    ) ; break ;
+		case "year"  : writeln( "Usage: year"                     ) ; break ;
+		case "all"   : writeln( "Usage: all"                      ) ; break ;
+		case "edit"  : writeln( "Usage: edit [yyyy-mm-dd [1-10]]" ) ; break ;
 		case "nohistory" :
 			writeln( "No data yet! Use the 'log' command to log your mood" ) ;
 			break ;
@@ -33,10 +33,6 @@ int usage( string arg0 ) {
 	}
 	return 0 ;
 }
-
-// help strings
-const string helpLog = "log [1-10]" ;
-const string helpDay = "day"        ;
 
 string historyFile = "" ;
 
@@ -245,7 +241,41 @@ int week( string[] args ) {
 	return 0 ;
 }
 
-int month( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
+int month( string[] args ) {
+	if ( args.length ) return usage( "month" ) ;
+	auto history = getHistory ;
+	if ( history.length == 0 ) return usage( "nohistory" ) ;
+
+	writeln( "Here's how your month's looking:" ) ;
+
+	const string[] months = [
+		"Jan" , "Feb" , "Mar" , "Apr" , "May" , "Jun" ,
+		"Jul" , "Aug" , "Sep" , "Oct" , "Nov" , "Dec"
+	] ;
+
+	string[] markers           ;
+	auto     today = todayDate ;
+	bool     labelOnOdd        ;
+	foreach ( i ; 0 .. 30 ) {
+		auto d = today - days( i ) ;
+		if ( d.day == 1 ) {
+			markers ~= months[ d.month ] ;
+			labelOnOdd = markers.length % 2 ;
+		} else markers ~= d.day.text ;
+	}
+	markers = markers.reverse ;
+	markers[0] = months[ ( today - days( 29 ) ).month ] ;
+	markers[1] = markers[0]                             ;
+	write( "   " ) ;
+	foreach ( i ; iota( labelOnOdd ? 1 : 0 , 30 , 2 ) )
+		markers[i].leftJustifier( 4 ).write ;
+	writeln ;
+
+	getDays( 29 ).graph ;
+
+	return 0 ;
+}
+
 int year( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int all( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int edit( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }

@@ -7,7 +7,7 @@ Simple CLI mood tracker
 / Log a mood rating
 / See mood for today
 / See mood over the last week
-x See mood over the last month
+/ See mood over the last month
 x See mood over the last year
 x See all mood history
 x Edit the mood for a day
