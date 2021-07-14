@@ -10,6 +10,7 @@ import std.conv      ;
 import std.typecons  ;
 import std.algorithm ;
 import std.datetime  ;
+import std.range     ;
 
 int usage( string arg0 ) {
 	switch ( arg0 ) {
@@ -123,20 +124,20 @@ in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
      "All values must be 1-10" ) {
 	const string[] prefixes = [ ":D" , ":)" , ":|" , ":(" , ":C" ] ;
 	const string[] colours = [
-		"\x1b[32m" , "\x1b[34m" , "\x1b[35m" , "\x1b[33m" , "\x1b[31m"
+		"\x1b[92m" , "\x1b[32;100m" , "\x1b[0m" , "\x1b[31;100m" , "\x1b[91m"
 	] ;
 	const string reset = "\x1b[0m" ;
 
-	alias Bar = Tuple!( int , int ) ; // min max
+	alias Bar = Tuple!( int , int , int ) ; // left max right
 	Bar[] bars ;
 	foreach ( ulong i , int v ; values ) {
-		Bar bar = Bar( v , v ) ;
+		Bar bar = Bar( v , v , v ) ;
 		if ( i > 0 )
 			if ( values[ i - 1 ] < bar[0] - 1 && values[ i - 1 ] > 0 )
 				bar[0] = values[ i - 1 ] + 1 ;
 		if ( i < values.length - 1 )
-			if ( values[ i + 1 ] < bar[0] - 1 && values[ i + 1 ] > 0 )
-				bar[0] = values[ i + 1 ] + 1 ;
+			if ( values[ i + 1 ] < bar[2] - 1 && values[ i + 1 ] > 0 )
+				bar[2] = values[ i + 1 ] + 1 ;
 		bars ~= bar ;
 	}
 
@@ -144,12 +145,18 @@ in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
 	static foreach ( ulong l , int m ; [ 9 , 7 , 5 , 3 , 1 ] ) {
 		write( colours[l] , prefixes[l] , " " ) ;
 		foreach ( b ; bars ) {
+			// left half
 			if      ( b[0] > m + 1 || b[1] < m ) write( " " ) ;
 			else if ( b[0] == m + 1            ) write( "▀" ) ;
 			else if ( b[1] == m                ) write( "▄" ) ;
 			else                                 write( "█" ) ;
+			// right half
+			if      ( b[2] > m + 1 || b[1] < m ) write( " " ) ;
+			else if ( b[2] == m + 1            ) write( "▀" ) ;
+			else if ( b[1] == m                ) write( "▄" ) ;
+			else                                 write( "█" ) ;
 		}
-		writeln() ;
+		writeln( reset ) ;
 	}
 }
 
@@ -216,6 +223,7 @@ int day( string[] args ) {
 	int[] values = history[ $ - 1 ].values.split( "," ).map!( to!int ).array ;
 
 	writeln( "Here's how your day's looking so far:" ) ;
+	writeln( "   " , ".".repeat( values.length ).join( " " ) ) ;
 	graph( values ) ;
 
 	return 0 ;
@@ -228,7 +236,9 @@ int week( string[] args ) {
 
 	writeln( "Here's how your week's looking:" ) ;
 	auto dow = todayDate.dayOfWeek ;
-	writeln( "   " , "SMTWTFSSMTWTFSSM"[ dow + 1 .. dow + 8 ] ) ;
+	writeln( "   " ,
+		"S M T W T F S S M T W T F S S M "[ dow * 2 + 2 .. dow * 2 + 16 ]
+	) ;
 
 	getDays( 6 ).graph ;
 
