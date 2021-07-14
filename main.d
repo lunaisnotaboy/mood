@@ -115,6 +115,53 @@ int[] getDays( int daysago ) {
 	return values.reverse ;
 }
 
+const string[] months = [ "" ,
+	"Jan" , "Feb" , "Mar" , "Apr" , "May" , "Jun" ,
+	"Jul" , "Aug" , "Sep" , "Oct" , "Nov" , "Dec"
+] ;
+
+alias MonthData = Tuple!( short , "year" , string , "month" ,
+                          int[] , "values" ) ;
+MonthData[] getMonths( Date from ) {
+	auto history = getHistory ;
+	if ( history.length == 0 ) return [] ;
+
+	auto   today = todayDate             ;
+	ulong  entry = history.length - 1    ;
+	string month = months[ today.month ] ;
+	int[]       values ;
+	MonthData[] data   ;
+
+	while ( today >= from ) {
+		if ( entry < 0 || entry >= history.length ) values ~= [ 0 , 0 ] ;
+		else if ( history[entry].date == today.toISOExtString ) {
+			auto todayValues = history[entry].values.split( "," ).map!( to!int )
+				.array ;
+			if ( todayValues.length == 1 )
+				values ~= [ todayValues[0] , todayValues[0] ] ;
+			else values ~= [
+				// these are in reverse because the whole thing will be reversed
+				// later
+				cast(int)( todayValues[ $ / 2 .. $ ].mean ) ,
+				cast(int)( todayValues[ 0 .. $ / 2 ].mean )
+			] ;
+			entry -- ;
+		} else values ~= [ 0 , 0 ] ;
+
+		short y = today.year ;
+		today -= days( 1 ) ;
+		if ( month != months[ today.month ] ) {
+			// new month
+			data  ~= MonthData( y , month , values.reverse ) ;
+			month  = months[ today.month ]                   ;
+			values = []                                      ;
+			if ( entry < 0 || entry >= history.length ) break ;
+		}
+	}
+
+	return data.reverse ;
+}
+
 void graph( int[] values )
 in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
      "All values must be 1-10" ) {
@@ -153,6 +200,26 @@ in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
 			else                                 write( "█" ) ;
 		}
 		writeln( reset ) ;
+	}
+}
+
+void heatmap( MonthData[] data ) {
+	const string[] blocks = [
+		"\x1b[0m "     ,
+		"\x1b[91m▁"    , "\x1b[91m▂"  , "\x1b[31m▃" , "\x1b[31m▄" ,
+		"\x1b[0m▄" , "\x1b[0m▅" ,
+		"\x1b[32m▅"    , "\x1b[32m▆" , "\x1b[92m▇"  , "\x1b[92m█"
+	] ;
+
+	writeln(
+		"    1   3   5   7   9   11  13  15  17  19  21  23  25  27  29  31 "
+	) ;
+	writeln( data[0].year ) ;
+	foreach ( i , m ; data ) {
+		if ( m.month == "Jan" ) writeln( m.year ) ;
+		std.stdio.write( m.month , " " ) ;
+		foreach ( v ; m.values ) write( blocks[v] ) ;
+		writeln( blocks[0] ) ;
 	}
 }
 
@@ -201,9 +268,7 @@ int log( string[] args ) {
 		if ( history[ $ - 1 ].date == getToday )
 			history[ $ - 1 ].values ~= "," ~ s ;
 		else history ~= Entry( getToday , s ) ;
-	} else {
-		history ~= Entry( getToday , s ) ;
-	}
+	} else history ~= Entry( getToday , s ) ;
 	history.save() ;
 
 	return 0 ;
@@ -248,11 +313,6 @@ int month( string[] args ) {
 
 	writeln( "Here's how your month's looking:" ) ;
 
-	const string[] months = [
-		"Jan" , "Feb" , "Mar" , "Apr" , "May" , "Jun" ,
-		"Jul" , "Aug" , "Sep" , "Oct" , "Nov" , "Dec"
-	] ;
-
 	string[] markers           ;
 	auto     today = todayDate ;
 	bool     labelOnOdd        ;
@@ -276,7 +336,32 @@ int month( string[] args ) {
 	return 0 ;
 }
 
-int year( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
-int all( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
+int year( string[] args ) {
+	if ( args.length ) return usage( "year" ) ;
+
+	auto from = todayDate.add!"years"( - 1 ) ;
+	from.day  = 1 ;
+	from = from.add!"months"( 1 ) ;
+	auto data = getMonths( from ) ;
+	if ( data.length == 0 ) return usage( "nohistory" ) ;
+
+	writeln( "Here's how the last year has been:" ) ;
+	data.heatmap ;
+
+	return 0 ;
+}
+
+int all( string[] args ) {
+	if ( args.length ) return usage( "all" ) ;
+
+	auto data = getMonths( Date( 1970 , 1 , 1 ) ) ;
+	if ( data.length == 0 ) return usage( "nohistory" ) ;
+
+	writeln( "Here's your entire mood history:" ) ;
+	data.heatmap ;
+
+	return 0 ;
+}
+
 int edit( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
 int help( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
