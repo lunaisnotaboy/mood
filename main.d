@@ -403,4 +403,47 @@ int all( string[] args ) {
 	return 0 ;
 }
 
-int edit( string[] args ) { abort( "NOT YET IMPLEMENTED" ) ; return 0 ; }
+int edit( string[] args ) {
+	if ( args.length > 2 ) return usage( "edit" ) ;
+	string date   ;
+	string newval ;
+
+	if ( args.length < 1 ) {
+		write( "What date are you editing? (yyyy-mm-dd): " ) ;
+		date = readln.chomp ;
+	} else date = args[0] ;
+	try date = Date.fromISOExtString( date ).toISOExtString ;
+	catch (Throwable) {
+		stderr.writeln( "Expected date in form 'yyyy-mm-dd', not '" ,
+						date , "'" ) ;
+		return usage( "edit" ) ;
+	}
+
+	if ( args.length < 2 ) {
+		write( "What's your new rating? (1-10): " ) ;
+		newval = readln.chomp ;
+	} else newval = args[1] ;
+	int val = 0 ;
+	try val = newval.to!int ;
+	catch (Throwable) { }
+
+	if ( val < 1 || val > 10 ) {
+		stderr.writeln( "Expected a number 1-10, not '" , newval , "'" ) ;
+		return usage( "edit" ) ;
+	}
+
+	// now apply
+	auto history = getHistory ;
+	if ( history.any!( e => e.date == date ) )
+		history = history.substitute!( ( a , b ) => a.date == b.date )
+			( Entry( date , newval ) , Entry( date , newval ) ).array ;
+	else history = ( history ~ Entry( date , newval ) )
+		.sort!( ( a , b ) =>
+			Date.fromISOExtString( a.date ) < Date.fromISOExtString( b.date )
+		).array ;
+	history.save ;
+
+	writeln( "Entry for '" , date , "' has been updated. Have a nice day!" ) ;
+
+	return 0 ;
+}

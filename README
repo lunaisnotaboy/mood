@@ -4,14 +4,9 @@ Simple CLI mood tracker
 
 # FEATURES
 
-/ Log a mood rating
-/ See mood for today
-/ See mood over the last week
-/ See mood over the last month
-/ See mood over the last year
-/ See all mood history
-x Edit the mood for a day
-/ Proper help menu
+* Log mood ratings. You can do multiple per day
+* View mood history over the day, week, month, year, or full history
+* Edit entries for previous days
 
 # BUILDING
 
@@ -20,3 +15,9 @@ From this directory, `dub build` (you'll need dub and dmd installed).
 # INSTALLATION
 
 Build, then copy `mood` to somewhere in your $PATH
+
+# FILES
+
+Mood saves mood history to `$XDG_DATA_HOME/mood-history` (if that variable isn't
+set then it's under `~/.local/share/`). That's the only persistent file it'll
+touch.
