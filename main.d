@@ -21,8 +21,11 @@ int usage( string arg0 ) {
 		case "y" , "year"  : writeln( "Usage: year"           ) ; break ;
 		case "a" , "all"   : writeln( "Usage: all"            ) ; break ;
 		case "h" , "help"  : writeln( "Usage: help [command]" ) ; break ;
+		case "n" , "note"  :
+			writeln( "Usage: note [yyyy-mm-dd] [note]" ) ;
+			break ;
 		case "e" , "edit"  :
-			writeln( "Usage: edit [yyyy-mm-dd [1-10]]" ) ;
+			writeln( "Usage: edit [yyyy-mm-dd] [1-10]" ) ;
 			break ;
 		case "nohistory" :
 			writeln( "No data yet! Use the 'log' command to log your mood" ) ;
@@ -43,9 +46,12 @@ int help( string[] args ) {
 \tIf you don't provide the value straight away you'll be prompted for it." ;
 	const string showHelp = "day|week|month|year|all|d|w|m|y|a
 \tDisplay your mood history over the given time period." ;
-	const string editHelp = "edit|e [yyyy-mm-dd [1-10]]
-\tUpdate your mood score for that day. You'll be prompted for missing
-\tinformation." ;
+	const string editHelp = "edit|e [yyyy-mm-dd] [1-10]
+\tUpdate your mood score for today or the date given. If you don't provide
+\tthe value straight away you'll be prompted for it." ;
+	const string noteHelp = "note|n [yyyy-mm-dd] [note]
+\tAdd a note for today or the date given. If you don't provide a note
+\tyou'll be prompted for it." ;
 	const string helpHelp = "help|h [command]
 \tShow help for the given command, or all if none is provided." ;
 
@@ -57,14 +63,16 @@ int help( string[] args ) {
 		logHelp .writeln ;
 		showHelp.writeln ;
 		editHelp.writeln ;
+		noteHelp.writeln ;
 		helpHelp.writeln ;
 	} else if ( args.length == 1 ) {
 		switch ( args[0] ) {
 			case "l" , "log" : logHelp.writeln ; break ;
 			case "d" , "w" , "m" , "y" , "a" ,
-				 "day" , "week" , "month" , "year" , "all" :
+			     "day" , "week" , "month" , "year" , "all" :
 				showHelp.writeln ; break ;
 			case "e" , "edit" : editHelp.writeln ; break ;
+			case "n" , "note" : noteHelp.writeln ; break ;
 			case "h" , "help" : helpHelp.writeln ; break ;
 			default : return usage( "help" ) ;
 		}
@@ -90,6 +98,7 @@ int main( string[] args ) {
 		case "y" , "year"  : return year ( args[2..$] ) ;
 		case "a" , "all"   : return all  ( args[2..$] ) ;
 		case "e" , "edit"  : return edit ( args[2..$] ) ;
+		case "n" , "note"  : return note ( args[2..$] ) ;
 		case "h" , "help"  : return help ( args[2..$] ) ;
 		default : return args[0].usage ;
 	}
@@ -109,18 +118,21 @@ void ensureHistoryFile() {
 	                         "'.  Exiting" ) ;
 }
 
-alias Entry = Tuple!( string , "date" , string , "values" ) ;
+alias Entry = Tuple!( string , "date" , string , "values" , string , "note" ) ;
 
 Entry[] getHistory() {
 	ensureHistoryFile ;
 	return historyFile.readText.splitLines.map!( l => l.split( " " ) )
-		.map!( a => Entry( a[0] , a[1] ) ).array ;
+		.map!( a =>
+			Entry( a[0] , a[1] , a.length > 2 ? a[2..$].join( " " ) : "" )
+		).array ;
 }
 
 void save( Entry[] history ) {
 	ensureHistoryFile ;
 	std.file.write( historyFile ,
-		history.map!( e => e.date ~ " " ~ e.values ).array.join( "\n" )
+		history.map!( e => e.date ~ " " ~ e.values ~ " " ~ e.note )
+			.array.join( "\n" )
 	) ;
 }
 
@@ -307,8 +319,8 @@ int log( string[] args ) {
 	if ( history.length ) {
 		if ( history[ $ - 1 ].date == getToday )
 			history[ $ - 1 ].values ~= "," ~ s ;
-		else history ~= Entry( getToday , s ) ;
-	} else history ~= Entry( getToday , s ) ;
+		else history ~= Entry( getToday , s , "" ) ;
+	} else history ~= Entry( getToday , s , "" ) ;
 	history.save() ;
 
 	return 0 ;
@@ -403,47 +415,112 @@ int all( string[] args ) {
 	return 0 ;
 }
 
+mixin template getDateFn( string helpText ) {
+	bool getDate( bool b = true )() {
+		if ( date == "" ) {
+			date = getToday ;
+			return true ;
+		}
+
+		try date = Date.fromISOExtString( date ).toISOExtString ;
+		catch (Throwable) {
+			static if ( b ) {
+				stderr.writeln( "Expected date in form 'yyyy-mm-dd', not '" ,
+				                date , "'" ) ;
+				usage( helpText ) ;
+			}
+			return false ;
+		}
+		return true ;
+	}
+}
+
 int edit( string[] args ) {
 	if ( args.length > 2 ) return usage( "edit" ) ;
 	string date   ;
 	string newval ;
 
-	if ( args.length < 1 ) {
-		write( "What date are you editing? (yyyy-mm-dd): " ) ;
-		date = readln.chomp ;
-	} else date = args[0] ;
-	try date = Date.fromISOExtString( date ).toISOExtString ;
-	catch (Throwable) {
-		stderr.writeln( "Expected date in form 'yyyy-mm-dd', not '" ,
-						date , "'" ) ;
-		return usage( "edit" ) ;
+	mixin getDateFn!"edit" ;
+
+	bool getValue( bool b = true )() {
+		if ( newval == "" ) {
+			write( "What's your new rating? (1-10): " ) ;
+			newval = readln.chomp ;
+		}
+
+		int val = 0 ;
+		try val = newval.to!int ;
+		catch (Throwable) { }
+		if ( val < 1 || val > 10 ) {
+			static if ( b ) {
+				stderr.writeln( "Expected a number 1-10, not '" , newval ,
+				                "'" ) ;
+				usage( "edit" ) ;
+			}
+			return false ;
+		}
+		return true ;
 	}
 
-	if ( args.length < 2 ) {
-		write( "What's your new rating? (1-10): " ) ;
-		newval = readln.chomp ;
-	} else newval = args[1] ;
-	int val = 0 ;
-	try val = newval.to!int ;
-	catch (Throwable) { }
-
-	if ( val < 1 || val > 10 ) {
-		stderr.writeln( "Expected a number 1-10, not '" , newval , "'" ) ;
-		return usage( "edit" ) ;
+	if ( args.length == 2 ) { // date value
+		date   = args[0] ;
+		newval = args[1] ;
+		if ( ! getDate ) return 0 ;
+		if ( ! getValue ) return 0 ;
+	} else if ( args.length == 1 ) {
+		date = args[0] ;
+		if ( ! getDate!false ) {
+			date   = getToday ;
+			newval = args[0]  ;
+			if ( ! getValue ) return 0 ;
+		}
 	}
+	getDate!false ;
+	if ( ! getValue ) return 0 ;
 
 	// now apply
 	auto history = getHistory ;
-	if ( history.any!( e => e.date == date ) )
-		history = history.substitute!( ( a , b ) => a.date == b.date )
-			( Entry( date , newval ) , Entry( date , newval ) ).array ;
-	else history = ( history ~ Entry( date , newval ) )
+	auto i = history.countUntil!( e => e.date == date ) ;
+	if ( i == -1 ) history = ( history ~ Entry( date , newval , "" ) )
 		.sort!( ( a , b ) =>
 			Date.fromISOExtString( a.date ) < Date.fromISOExtString( b.date )
 		).array ;
+	else history[i].values = newval ;
 	history.save ;
 
 	writeln( "Entry for '" , date , "' has been updated. Have a nice day!" ) ;
+
+	return 0 ;
+}
+
+int note( string[] args ) {
+	string date ;
+	string note ;
+
+	mixin getDateFn!"note" ;
+
+	if ( args.length ) {
+		date = args[0] ;
+		if ( getDate!false ) {
+			if ( args.length > 1 ) note = args[1..$].join( " " ) ;
+		} else {
+			date = getToday ;
+			note = args.join( " " ) ;
+		}
+	}
+	if ( note == "" ) {
+		write( "Comment for the day?: " ) ;
+		note = readln.chomp ;
+	}
+
+	// and save
+	auto history = getHistory ;
+	auto i = history.countUntil!( e => e.date == date ) ;
+	if ( i == -1 ) writeln( "No data for '" , date ,
+		"'. Log a mood value with 'mood log " , date ,
+		" [1-10]' before adding a note" ) ;
+	else history[i].note = note ;
+	history.save ;
 
 	return 0 ;
 }
