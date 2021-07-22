@@ -142,14 +142,17 @@ string getToday() {
 
 Date todayDate() { return Date.fromISOExtString( getToday ) ; }
 
-int[] getDays( int daysago ) {
+alias ValuesEntries = Tuple!( int[] , "values" , Entry[] , "entries" ) ;
+
+ValuesEntries getDays( int daysago ) {
 	auto history = getHistory ;
-	if ( history.length == 0 ) return [] ;
+	if ( history.length == 0 ) return ValuesEntries() ;
 
 	auto today    = todayDate               ;
 	auto firstDay = today - days( daysago ) ;
 	auto entry    = history.length - 1      ;
-	int[] values ;
+	int[]   values  ;
+	Entry[] entries ;
 
 	while ( today >= firstDay ) {
 		if ( entry < 0 || entry >= history.length ) values ~= [ 0 , 0 ] ;
@@ -169,7 +172,7 @@ int[] getDays( int daysago ) {
 
 		today -= days( 1 ) ;
 	}
-	return values.reverse ;
+	return ValuesEntries( values.reverse , history[ entry + 1 .. $ ] ) ;
 }
 
 const string[] months = [ "" ,
@@ -179,9 +182,10 @@ const string[] months = [ "" ,
 
 alias MonthData = Tuple!( short , "year" , string , "month" ,
                           int[] , "values" ) ;
-MonthData[] getMonths( Date from ) {
+alias MonthsEntries = Tuple!( MonthData[] , "data" , Entry[] , "entries" ) ;
+MonthsEntries getMonths( Date from ) {
 	auto history = getHistory ;
-	if ( history.length == 0 ) return [] ;
+	if ( history.length == 0 ) return MonthsEntries() ;
 
 	auto   today = todayDate             ;
 	ulong  entry = history.length - 1    ;
@@ -216,7 +220,7 @@ MonthData[] getMonths( Date from ) {
 		}
 	}
 
-	return data.reverse ;
+	return MonthsEntries( data.reverse , history[ entry + 1 .. $ ] ) ;
 }
 
 void graph( int[] values )
@@ -256,23 +260,31 @@ in ( std.algorithm.all!( v => v >= 0 && v <= 10 )( values ) ,
 }
 
 void heatmap( MonthData[] data ) {
-	const string[] blocks = [
-		"\x1b[0m "     ,
-		"\x1b[91m▁"    , "\x1b[91m▂"  , "\x1b[31m▃" , "\x1b[31m▄" ,
-		"\x1b[0m▄" , "\x1b[0m▅" ,
-		"\x1b[32m▅"    , "\x1b[32m▆" , "\x1b[92m▇"  , "\x1b[92m█"
+	const string[] blocks = [ " " ,
+		"\x1b[91m▁" , "\x1b[91m▂" , "\x1b[31m▃" , "\x1b[31m▄" ,
+		"\x1b[30m▄" , "\x1b[30m▅" ,
+		"\x1b[32m▅" , "\x1b[32m▆" , "\x1b[92m▇" , "\x1b[92m█"
 	] ;
 
 	writeln(
-		"    1   3   5   7   9   11  13  15  17  19  21  23  25  27  29  31 "
+		"     1   3   5   7   9   11  13  15  17  19  21  23  25  27  29  31 "
 	) ;
-	writeln( data[0].year ) ;
+	bool lightBg = false ;
 	foreach ( i , m ; data ) {
-		if ( m.month == "Jan" ) writeln( m.year ) ;
-		std.stdio.write( m.month , " " ) ;
-		foreach ( v ; m.values ) write( blocks[v] ) ;
-		writeln( blocks[0] ) ;
+		if ( lightBg ) write( "\x1b[100m" ) ;
+		lightBg = ! lightBg ;
+		if ( m.month == "Jan" || i == 0 ) write( m.year , " " ) ;
+		else std.stdio.write( m.month , "  " ) ;
+		foreach ( v ; 0 .. 62 )
+			write( blocks[ m.values.length > v ? m.values[v] : 0 ] ) ;
+		//foreach ( v ; m.values ) write( blocks[v] ) ;
+		writeln( "\x1b[0m" ) ;
 	}
+}
+
+void showNotes( Entry[] entries ) {
+	foreach ( e ; entries ) if ( e.note.length )
+		writeln( "[" , e.date , "]: " , e.note ) ;
 }
 
 // actions
@@ -339,6 +351,10 @@ int day( string[] args ) {
 	writeln( "   " , ".".repeat( values.length ).join( " " ) ) ;
 	values.map!( d => [ d , d ] ).array.join( cast(int[])[] ).graph ;
 
+	if ( history[ $ - 1 ].note.length )
+		writeln( "Your note for today: " , history[ $ - 1 ].note ) ;
+	else writeln( "No note for today" ) ;
+
 	return 0 ;
 }
 
@@ -353,7 +369,18 @@ int week( string[] args ) {
 		"SMTWTFSSMTWTFSSM"[ dow + 1 .. dow + 8 ].map!( d => [d] ).join( "   " )
 	) ;
 
-	getDays( 6 ).map!( d => [ d , d ] ).array.join( cast(int[])[] ).graph ;
+	auto days = getDays( 6 ) ;
+	days.values.map!( d => [ d , d ] ).array.join( cast(int[])[] ).graph ;
+	auto notes = days.entries.filter!( e => e.note.length ).array ;
+	if ( notes.length ) {
+		foreach ( e ; notes ) {
+			writeln( [
+				"Sunday   " , "Monday   " , "Tuesday  " , "Wednesday" ,
+				"Thursday " , "Friday   " , "Saturday "
+			][ Date.fromISOExtString( e.date ).dayOfWeek ] ,
+				": " , e.note ) ;
+		}
+	} else writeln( "No notes for this week" ) ;
 
 	return 0 ;
 }
@@ -383,7 +410,9 @@ int month( string[] args ) {
 		markers[i].leftJustifier( 4 ).write ;
 	writeln ;
 
-	getDays( 29 ).graph ;
+	auto days = getDays( 29 ) ;
+	days.values.graph ;
+	days.entries.showNotes ;
 
 	return 0 ;
 }
@@ -395,10 +424,11 @@ int year( string[] args ) {
 	from.day  = 1 ;
 	from = from.add!"months"( 1 ) ;
 	auto data = getMonths( from ) ;
-	if ( data.length == 0 ) return usage( "nohistory" ) ;
+	if ( data.data.length == 0 ) return usage( "nohistory" ) ;
 
 	writeln( "Here's how the last year has been:" ) ;
-	data.heatmap ;
+	data.data.heatmap ;
+	data.entries.showNotes ;
 
 	return 0 ;
 }
@@ -407,10 +437,11 @@ int all( string[] args ) {
 	if ( args.length ) return usage( "all" ) ;
 
 	auto data = getMonths( Date( 1970 , 1 , 1 ) ) ;
-	if ( data.length == 0 ) return usage( "nohistory" ) ;
+	if ( data.data.length == 0 ) return usage( "nohistory" ) ;
 
 	writeln( "Here's your entire mood history:" ) ;
-	data.heatmap ;
+	data.data.heatmap ;
+	data.entries.showNotes ;
 
 	return 0 ;
 }
@@ -508,6 +539,7 @@ int note( string[] args ) {
 			note = args.join( " " ) ;
 		}
 	}
+	getDate!false ;
 	if ( note == "" ) {
 		write( "Comment for the day?: " ) ;
 		note = readln.chomp ;
@@ -521,6 +553,8 @@ int note( string[] args ) {
 		" [1-10]' before adding a note" ) ;
 	else history[i].note = note ;
 	history.save ;
+
+	writeln( "Entry for '" , date , "' has been updated. Have a nice day!" ) ;
 
 	return 0 ;
 }
